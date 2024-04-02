@@ -110,6 +110,7 @@ class MasaCtrlPipeline(StableDiffusionPipeline):
         neg_prompt=None,
         ref_intermediate_latents=None,
         return_intermediates=False,
+        interpolate_scale=None,
         **kwds):
         DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         if isinstance(prompt, list):
@@ -134,6 +135,17 @@ class MasaCtrlPipeline(StableDiffusionPipeline):
             text_embeddings[-1] = text_embeddings[-1] + kwds.get("dir") * v
             print(u.shape)
             print(v.shape)
+
+        if interpolate_scale is not None and len(text_embeddings) == 2:
+            text_target, text_caption = prompt[-1].split(',')[:2]
+            target_input = self.tokenizer(
+                [text_target, text_caption],
+                padding="max_length",
+                max_length=77,
+                return_tensors="pt"
+            )
+            target_embeddings = self.text_encoder(target_input.input_ids.to(DEVICE))[0]
+            text_embeddings[-1] = target_embeddings[0]*interpolate_scale + target_embeddings[1]*(1-interpolate_scale)
 
         # define initial latents
         latents_shape = (batch_size, self.unet.in_channels, height//8, width//8)
